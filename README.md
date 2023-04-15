@@ -11,46 +11,6 @@ Compressed data is saved in `safetensors` format. For compression if batch size 
 Compressing with vqgan model by removing `--kl` and adding `--vq_ind` for `vq-f4`, `vq-f8` should provide best compression ratio. Further using a zip program to compress the saved output may provide better quality and file size reduction than using jpeg with quality reduced to around 60 percent. A good quality pretrained reconstruction model for `vq-f8` followed by zip compression may provide best results in terms of file size.
 
 
-## Flags
-
-If `--dc` flag is provided it runs decompression otherwise compresses input.
-
-`--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`.
-
-Currently 3 types of data compression is available. 
-- For `--kl` autoencoder kl pretrained model encode output is saved.
-- If `--kl` not specified then vqgan encode output is saved.
-- If `--vq_ind` specified then indices are saved. These are used to reconstruct image.
-
-
-## Pretrained Model and Configs
-
-Original configs can be found [here](https://github.com/CompVis/latent-diffusion/tree/main/models/first_stage_models). More weights can be found on latent diffusion repo.
-
-For `kl-f8` stable diffusion vae ckpt can be used. Gives 8x downsampling.
-- https://huggingface.co/stabilityai/sd-vae-ft-ema-original/tree/main
-- https://huggingface.co/stabilityai/sd-vae-ft-mse-original/tree/main
-
-For `kl-f4` config,
-- https://ommer-lab.com/files/latent-diffusion/kl-f4.zip
-
-For `vq-f4` config,
-- https://ommer-lab.com/files/latent-diffusion/vq-f4.zip
-
-Following may provide better compression rate but there maybe noticable degradation in reconstructed images.
-
-For `vq-f8` config,
-- https://ommer-lab.com/files/latent-diffusion/vq-f8.zip
-
-For `vq-f8-n256` config,
-- https://ommer-lab.com/files/latent-diffusion/vq-f8-n256.zip
-
-For `kl-f16` config,
-- https://ommer-lab.com/files/latent-diffusion/kl-f16.zip
-
-For `kl-f32` config,
-- https://ommer-lab.com/files/latent-diffusion/kl-f32.zip
-
 
 ## Install 
 
@@ -81,6 +41,49 @@ kl decompress,
 vq decompress with indices,
 
 > python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --dc --vq_ind
+
+
+## Flags
+
+If `--dc` flag is provided it runs decompression otherwise compresses input.
+
+`--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`.
+
+Currently 3 types of data compression is available. 
+- For `--kl` autoencoder kl pretrained model encode output is saved.
+- If `--kl` not specified then vqgan encode output is saved.
+- If `--vq_ind` specified then indices are saved. These are used to reconstruct image.
+
+
+## Pretrained Model and Configs
+
+Original configs can be found [here](https://github.com/CompVis/latent-diffusion/tree/main/models/first_stage_models). More weights can be found on latent diffusion repo.
+
+For `kl-f8` stable diffusion vae ckpt can be used. Gives 8x downsampling.
+- https://huggingface.co/stabilityai/sd-vae-ft-ema-original/tree/main
+- https://huggingface.co/stabilityai/sd-vae-ft-mse-original/tree/main
+
+For `kl-f4` config,
+- https://ommer-lab.com/files/latent-diffusion/kl-f4.zip
+
+For `vq-f4` config,
+- https://ommer-lab.com/files/latent-diffusion/vq-f4.zip
+
+Following may provide better compression rates but there maybe noticable degradation in reconstructed images.
+
+For `vq-f8` config,
+- https://ommer-lab.com/files/latent-diffusion/vq-f8.zip
+
+For `vq-f8-n256` config,
+- https://ommer-lab.com/files/latent-diffusion/vq-f8-n256.zip
+
+For `kl-f16` config,
+- https://ommer-lab.com/files/latent-diffusion/kl-f16.zip
+
+For `kl-f32` config,
+- https://ommer-lab.com/files/latent-diffusion/kl-f32.zip
+
+
 
 
 ## References
