@@ -190,14 +190,16 @@ class ImageCompression:
 
         key_delete_list = []
         if use_decompress:
-            del sd['quant_conv.weight']
-            del sd['quant_conv.bias']
+            for dkey in sd.keys():
+                if dkey.split('.')[0] == 'quant_conv':
+                    key_delete_list.append(dkey)
             for dkey in sd.keys():
                 if dkey.split('.')[0] == 'encoder':
                     key_delete_list.append(dkey)
         else:
-            del sd['post_quant_conv.weight']
-            del sd['post_quant_conv.bias']
+            for dkey in sd.keys():
+                if dkey.split('.')[0] == 'post_quant_conv':
+                    key_delete_list.append(dkey)
             for dkey in sd.keys():
                 if dkey.split('.')[0] == 'decoder':
                     key_delete_list.append(dkey)
