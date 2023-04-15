@@ -21,6 +21,7 @@ setup(
         'torchvision',
         'pillow',
         'tqdm',
-        'einops'
+        'einops',
+        'lightning'
     ]
 )
