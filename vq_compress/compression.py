@@ -271,7 +271,6 @@ class ImageCompression:
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
                         z_shape = torch.tensor(list(z_shape), dtype=torch.int)
                         tensors['z_shape'] = z_shape
-
                     else:
                         z, _, [_, _, indices] = self.ldm_model.encode(input_data)
                         # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
