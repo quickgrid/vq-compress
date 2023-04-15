@@ -8,7 +8,7 @@ from einops import rearrange
 from torch.functional import F
 
 from vq_compress.core.ldm.distributions import DiagonalGaussianDistribution
-from vq_compress.core.ldm.ema import LitEma
+# from vq_compress.core.ldm.ema import LitEma
 from vq_compress.core.ldm.model import Encoder, Decoder
 
 
@@ -271,30 +271,30 @@ class VQModel(pl.LightningModule):
         if self.batch_resize_range is not None:
             print(f"{self.__class__.__name__}: Using per-batch resizing in range {batch_resize_range}.")
 
-        self.use_ema = use_ema
-        if self.use_ema:
-            self.model_ema = LitEma(self)
-            print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+        # self.use_ema = use_ema
+        # if self.use_ema:
+        #     self.model_ema = LitEma(self)
+        #     print(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
         self.scheduler_config = scheduler_config
         self.lr_g_factor = lr_g_factor
 
-    @contextmanager
-    def ema_scope(self, context=None):
-        if self.use_ema:
-            self.model_ema.store(self.parameters())
-            self.model_ema.copy_to(self)
-            if context is not None:
-                print(f"{context}: Switched to EMA weights")
-        try:
-            yield None
-        finally:
-            if self.use_ema:
-                self.model_ema.restore(self.parameters())
-                if context is not None:
-                    print(f"{context}: Restored training weights")
+    # @contextmanager
+    # def ema_scope(self, context=None):
+    #     if self.use_ema:
+    #         self.model_ema.store(self.parameters())
+    #         self.model_ema.copy_to(self)
+    #         if context is not None:
+    #             print(f"{context}: Switched to EMA weights")
+    #     try:
+    #         yield None
+    #     finally:
+    #         if self.use_ema:
+    #             self.model_ema.restore(self.parameters())
+    #             if context is not None:
+    #                 print(f"{context}: Restored training weights")
 
     def init_from_ckpt(self, path, ignore_keys=list()):
         sd = torch.load(path, map_location="cpu")["state_dict"]
@@ -378,11 +378,11 @@ class VQModel(pl.LightningModule):
             xrec = self.to_rgb(xrec)
         log["inputs"] = x
         log["reconstructions"] = xrec
-        if plot_ema:
-            with self.ema_scope():
-                xrec_ema, _ = self(x)
-                if x.shape[1] > 3: xrec_ema = self.to_rgb(xrec_ema)
-                log["reconstructions_ema"] = xrec_ema
+        # if plot_ema:
+        #     with self.ema_scope():
+        #         xrec_ema, _ = self(x)
+        #         if x.shape[1] > 3: xrec_ema = self.to_rgb(xrec_ema)
+        #         log["reconstructions_ema"] = xrec_ema
         return log
 
     def to_rgb(self, x):
