@@ -100,6 +100,7 @@ class CustomImageDataset(Dataset):
             self,
             input_path: str,
             image_size: int,
+            keep_aspect_ratio: bool,
     ) -> None:
         super().__init__()
 
@@ -107,8 +108,12 @@ class CustomImageDataset(Dataset):
         self.image_size = image_size
         self.files_list = [p for ext in exts for p in Path(f'{input_path}').glob(f'*.{ext}')]
 
+        resize_type = transforms.Resize(image_size) if keep_aspect_ratio else transforms.Resize((image_size, image_size))
+
         self.transform = transforms.Compose([
-            transforms.Resize((image_size, image_size)),
+            # transforms.Resize((image_size, image_size)),
+            # transforms.Resize(image_size),
+            resize_type,
             transforms.ToTensor(),
             transforms.Lambda(preprocess_vqgan),
         ])
@@ -142,6 +147,7 @@ class ImageCompression:
             use_kl: bool = True,
             vq_ind: bool = True,
             use_decompress: bool = True,
+            keep_aspect_ratio: bool = False,
     ):
         self.use_decompress = use_decompress
         self.vq_ind = vq_ind
@@ -161,6 +167,7 @@ class ImageCompression:
         img_dataset = CustomImageDataset(
             input_path=self.input_path,
             image_size=self.image_size,
+            keep_aspect_ratio=keep_aspect_ratio,
         )
         self.img_data_loader = DataLoader(
             img_dataset,
@@ -191,11 +198,24 @@ class ImageCompression:
         config = OmegaConf.load(cfg_path)
         pl_sd = torch.load(ckpt_path, map_location="cpu")
         sd = pl_sd["state_dict"]
-        del sd['model_ema.decay']
-        del sd['model_ema.num_updates']
 
         key_delete_list = []
+        for dkey in sd.keys():
+            if dkey.split('.')[0] == 'loss':
+                key_delete_list.append(dkey)
 
+        for k in key_delete_list:
+            del sd[f'{k}']
+
+        key_delete_list = []
+        for dkey in sd.keys():
+            if dkey.split('.')[0] == 'model_ema':
+                key_delete_list.append(dkey)
+
+        for k in key_delete_list:
+            del sd[f'{k}']
+
+        key_delete_list = []
         if use_decompress:
             del sd['quant_conv.weight']
             del sd['quant_conv.bias']
@@ -212,7 +232,7 @@ class ImageCompression:
         for k in key_delete_list:
             del sd[f'{k}']
 
-        # print(sd.keys())
+        print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
         self.ldm_model.load_state_dict(sd, strict=False)
         self.ldm_model = self.ldm_model.to(device)
@@ -275,6 +295,7 @@ def main() -> None:
     parser.add_argument('--kl', help="generates output from kl autoencoder", action='store_true')
     parser.add_argument('--dc', help="decompresses encoding", action='store_true')
     parser.add_argument('--vq_ind', help="generates vqgan encoding instead of indices", action='store_true')
+    parser.add_argument('--aspect', help="preserves aspect ratio resize by given image size", action='store_true')
 
     args = parser.parse_args()
 
@@ -288,6 +309,7 @@ def main() -> None:
         vq_ind=args.vq_ind,
         use_decompress=args.dc,
         batch_size=args.batch,
+        keep_aspect_ratio=args.aspect,
     )
     image_compression.process()
 
