@@ -38,31 +38,6 @@ def preprocess_vqgan(x):
     return 2. * x - 1.
 
 
-def reconstruct_with_vqgan(x, model):
-    # could also use model(x) for reconstruction but use explicit encoding and decoding here
-    z, _, [_, _, indices] = model.encode(x)
-    print(f"VQGAN --- {model.__class__.__name__}: latent shape: {z.shape[2:]}")
-    print(x.shape, z.shape, indices.shape)
-    print(indices)
-    xrec = model.decode(z)
-    return xrec
-
-
-def reconstruct_with_vqgan_code(x, model):
-    # could also use model(x) for reconstruction but use explicit encoding and decoding here
-    z, _, [_, _, indices] = model.encode(x)
-    print(f"VQGAN --- {model.__class__.__name__}: latent shape: {z.shape[2:]}")
-    print(x.shape, z.shape, indices.shape)
-    print(indices)
-
-    # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
-    out = model.quantize.get_codebook_entry(indices, (z.shape[0], z.shape[2], z.shape[3], z.shape[1]))
-    print(torch.allclose(z, out))
-
-    xrec = model.decode(out)
-    return xrec
-
-
 class CustomEncodingDataset(Dataset):
     def __init__(
             self,
