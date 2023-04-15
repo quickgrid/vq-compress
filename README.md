@@ -57,7 +57,7 @@ Currently 3 types of data compression is available.
 
 ## Pretrained Model and Configs
 
-Original configs can be found [here](https://github.com/CompVis/latent-diffusion/tree/main/models/first_stage_models). More weights can be found on latent diffusion repo.
+Original configs can be found [here](https://github.com/CompVis/latent-diffusion/tree/main/models/first_stage_models). More weights can be found on latent diffusion repo. [ru-dalle](https://github.com/ai-forever/ru-dalle/blob/1ab4e30ac14edd282e4abed57528eb97a9f2cb2e/rudalle/vae/__init__.py) `vq-f8-gumbel` model trained on taming transformers repo can also be used. 
 
 For `kl-f8` stable diffusion vae ckpt can be used. Gives 8x downsampling.
 - https://huggingface.co/stabilityai/sd-vae-ft-ema-original/tree/main
@@ -83,6 +83,11 @@ For `kl-f16` config,
 For `kl-f32` config,
 - https://ommer-lab.com/files/latent-diffusion/kl-f32.zip
 
+For `vq-f8-gumbel` config, 
+- https://heibox.uni-heidelberg.de/d/2e5662443a6b4307b470/
+
+For `vq-f8-rudalle` config,
+- https://huggingface.co/ai-forever/rudalle-utils/tree/main
 
 
 
