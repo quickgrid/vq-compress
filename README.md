@@ -1,6 +1,6 @@
 # vq-compress
 
-Uses pretrained autoencoder, vqgan first stage models from [latent diffusion](https://github.com/CompVis/latent-diffusion/tree/a506df5756472e2ebaf9078affdde2c4f1502cd4) and [taming transformer](https://github.com/CompVis/taming-transformers/tree/3ba01b241669f5ade541ce990f7650a3b8f65318) repo. Model codes, configs are copied from these repos with unnecessary parts removed.
+Image compression and reconstruction using pretrained autoencoder, vqgan first stage models from [latent diffusion](https://github.com/CompVis/latent-diffusion/tree/a506df5756472e2ebaf9078affdde2c4f1502cd4) and [taming transformer](https://github.com/CompVis/taming-transformers/tree/3ba01b241669f5ade541ce990f7650a3b8f65318) repo. Model codes, configs are copied from these repos with unnecessary parts removed.
 
 To save vram and prevent extra processing only encoder or decoder weights based on compression or decompression task is loaded. Training code is removed but should be able to load models trained on original repo. 
 
