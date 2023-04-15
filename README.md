@@ -12,6 +12,8 @@ Only `vq-f4`, `vq-f8`, `kl-f4`, `kl-f8` configs tested as these provide best rec
 
 If `--dc` flag is provided it runs decompression otherwise compresses input.
 
+`--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`.
+
 Currently 3 types of data compression is available. 
 - For `--kl` autoencoder kl pretrained model encode output is saved.
 - If `--kl` not specified then vqgan encode output is saved.
@@ -42,14 +44,26 @@ Run following command on setup.py folder before running library.
 
 ## Commands
 
-Compress,
+### Compress
+
+kl compress,
 
 > python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --kl --batch 2 --img_size 384
 
+vq compress with indices,
 
-Decompress,
+> python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --batch 1 --img_size 512 --vq_ind
+
+
+### Decompress
+
+kl decompress,
 
 > python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --kl --dc
+
+vq decompress with indices,
+
+> python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --dc --vq_ind
 
 
 ## References
