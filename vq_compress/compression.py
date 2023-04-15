@@ -205,7 +205,7 @@ class ImageCompression:
         for k in key_delete_list:
             del sd[f'{k}']
 
-        print(sd.keys())
+        # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
         self.ldm_model.load_state_dict(sd, strict=False)
         self.ldm_model = self.ldm_model.to(device)
