@@ -20,6 +20,7 @@ setup(
         'torch',
         'torchvision',
         'pillow',
-        'tqdm'
+        'tqdm',
+        'einops'
     ]
 )

@@ -4,10 +4,6 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
-from einops import rearrange
-
-from vq_compress.core.ldm.distributions import DiagonalGaussianDistribution
-from vq_compress.core.ldm.util import instantiate_from_config
 
 
 def get_timestep_embedding(timesteps, embedding_dim):

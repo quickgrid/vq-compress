@@ -10,7 +10,6 @@ from torch.functional import F
 from vq_compress.core.ldm.distributions import DiagonalGaussianDistribution
 from vq_compress.core.ldm.ema import LitEma
 from vq_compress.core.ldm.model import Encoder, Decoder
-from vq_compress.core.ldm.util import instantiate_from_config
 
 
 class AutoencoderKL(pl.LightningModule):
