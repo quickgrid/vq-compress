@@ -78,7 +78,7 @@ class CustomEncodingDataset(Dataset):
     def __len__(self) -> int:
         return len(self.files_list)
 
-    def __getitem__(self, index) -> Tuple[torch.Tensor, List[str]]:
+    def __getitem__(self, index) -> Tuple[dict, List[str]]:
         path = self.files_list[index]
 
         with open(path, "r") as jsonfile:
@@ -92,7 +92,7 @@ class CustomEncodingDataset(Dataset):
                 for key in f.keys():
                     tensors[key] = f.get_tensor(key)
 
-        return tensors['weight'], data['file_name_list']
+        return tensors, data['file_name_list']
 
 
 class CustomImageDataset(Dataset):
@@ -111,8 +111,6 @@ class CustomImageDataset(Dataset):
         resize_type = transforms.Resize(image_size) if keep_aspect_ratio else transforms.Resize((image_size, image_size))
 
         self.transform = transforms.Compose([
-            # transforms.Resize((image_size, image_size)),
-            # transforms.Resize(image_size),
             resize_type,
             transforms.ToTensor(),
             transforms.Lambda(preprocess_vqgan),
@@ -248,7 +246,8 @@ class ImageCompression:
 
     def decompress(self) -> None:
         with tqdm(self.encoding_data_loader) as pbar:
-            for batch_idx, (input_data, full_filename_list) in enumerate(pbar):
+            for batch_idx, (input_data_dict, full_filename_list) in enumerate(pbar):
+                input_data = input_data_dict['weight']
                 input_data = input_data.squeeze(0)
                 input_data = input_data.to(self.device)
 
@@ -257,30 +256,64 @@ class ImageCompression:
                     for idx, fname in enumerate(full_filename_list):
                         x0 = custom_to_pil(xrec[idx])
                         x0.save(os.path.join(self.output_path, f"{fname[0]}"))
+                else:
+                    if self.vq_ind:
+                        if 'z_shape' in input_data_dict.keys():
+                            z_shaped_loaded = input_data_dict['z_shape']
+
+                        z_shaped_loaded = z_shaped_loaded.cpu().numpy()[0]
+                        out = self.ldm_model.quantize.get_codebook_entry(
+                            input_data, tuple(z_shaped_loaded)
+                        )
+
+                        xrec = self.ldm_model.decode(out)
+                        for idx, fname in enumerate(full_filename_list):
+                            x0 = custom_to_pil(xrec[idx])
+                            x0.save(os.path.join(self.output_path, f"{fname[0]}"))
+
+                    else:
+                        xrec = self.ldm_model.decode(input_data)
+                        for idx, fname in enumerate(full_filename_list):
+                            x0 = custom_to_pil(xrec[idx])
+                            x0.save(os.path.join(self.output_path, f"{fname[0]}"))
 
     def compress(self) -> None:
         with tqdm(self.img_data_loader) as pbar:
             for batch_idx, (input_data, filename, full_filename) in enumerate(pbar):
                 input_data = input_data.to(self.device)
 
+                tensors = {}
+
                 if self.use_kl:
-                    print(input_data.shape)
                     posterior = self.ldm_model.encode(input_data)
-                    posterior_sample = posterior.sample()
+                    compressed_tensor = posterior.sample()
+                else:
+                    if self.vq_ind:
+                        z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+                        compressed_tensor = indices
+                        z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
+                        z_shape = torch.tensor(list(z_shape), dtype=torch.int)
+                        tensors['z_shape'] = z_shape
 
-                    tensors = {
-                        "weight": posterior_sample,
-                    }
-                    save_file(tensors, os.path.join(self.output_path, f"batch_{batch_idx}.safetensors"))
+                    else:
+                        z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+                        # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
+                        z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
+                        compressed_tensor = self.ldm_model.quantize.get_codebook_entry(
+                            indices, z_shape
+                        )
 
-                    json_filenames = {
-                        "batched_file_name": f"batch_{batch_idx}.safetensors",
-                        "file_name_list": list(full_filename),
-                    }
-                    json_object = json.dumps(json_filenames, indent=4)
+                tensors['weight'] = compressed_tensor
+                save_file(tensors, os.path.join(self.output_path, f"batch_{batch_idx}.safetensors"))
 
-                    with open(os.path.join(self.output_path, f"batch_{batch_idx}.json"), "w") as jsonfile:
-                        jsonfile.write(json_object)
+                json_filenames = {
+                    "batched_file_name": f"batch_{batch_idx}.safetensors",
+                    "file_name_list": list(full_filename),
+                }
+                json_object = json.dumps(json_filenames, indent=4)
+
+                with open(os.path.join(self.output_path, f"batch_{batch_idx}.json"), "w") as jsonfile:
+                    jsonfile.write(json_object)
 
 
 def main() -> None:
