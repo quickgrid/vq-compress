@@ -49,6 +49,8 @@ If `--dc` flag is provided it runs decompression otherwise compresses input.
 
 `--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`.
 
+For `--ind_16` vqgan indices are saved as int16 reducing compressed output file size.
+
 Currently 3 types of data compression is available. 
 - For `--kl` autoencoder kl pretrained model encode output is saved.
 - If `--kl` not specified then vqgan encode output is saved.
