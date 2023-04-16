@@ -53,7 +53,7 @@ class CustomEncodingDataset(Dataset):
     def __len__(self) -> int:
         return len(self.files_list)
 
-    def __getitem__(self, index) -> Tuple[dict, List[str]]:
+    def __getitem__(self, index) -> Tuple[dict, dict]:
         path = self.files_list[index]
 
         with open(path, "r") as jsonfile:
@@ -67,7 +67,7 @@ class CustomEncodingDataset(Dataset):
                 for key in f.keys():
                     tensors[key] = f.get_tensor(key)
 
-        return tensors, data['file_name_list']
+        return tensors, data
 
 
 class CustomImageDataset(Dataset):
@@ -121,7 +121,9 @@ class ImageCompression:
             vq_ind: bool = True,
             use_decompress: bool = True,
             keep_aspect_ratio: bool = False,
+            use_16_bit_indices: bool = True,
     ):
+        self.use_16_bit_indices = use_16_bit_indices
         self.use_decompress = use_decompress
         self.vq_ind = vq_ind
         self.use_kl = use_kl
@@ -223,10 +225,12 @@ class ImageCompression:
 
     def decompress(self) -> None:
         with tqdm(self.encoding_data_loader) as pbar:
-            for batch_idx, (input_data_dict, full_filename_list) in enumerate(pbar):
+            for batch_idx, (input_data_dict, loaded_json_data) in enumerate(pbar):
                 input_data = input_data_dict['weight']
                 input_data = input_data.squeeze(0)
                 input_data = input_data.to(self.device)
+
+                full_filename_list = loaded_json_data['file_name_list']
 
                 if self.use_kl:
                     xrec = self.ldm_model.decode(input_data)
@@ -235,6 +239,9 @@ class ImageCompression:
                         x0.save(os.path.join(self.output_path, f"{fname[0]}"))
                 else:
                     if self.vq_ind:
+                        if 'ind_16' in loaded_json_data.keys():
+                            input_data = input_data.type(torch.int64)
+
                         if 'z_shape' in input_data_dict.keys():
                             z_shaped_loaded = input_data_dict['z_shape']
 
@@ -260,6 +267,7 @@ class ImageCompression:
                 input_data = input_data.to(self.device)
 
                 tensors = {}
+                json_data_obj = {}
 
                 if self.use_kl:
                     posterior = self.ldm_model.encode(input_data)
@@ -269,8 +277,13 @@ class ImageCompression:
                         z, _, [_, _, indices] = self.ldm_model.encode(input_data)
                         compressed_tensor = indices
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
-                        z_shape = torch.tensor(list(z_shape), dtype=torch.int)
+                        z_shape = torch.tensor(list(z_shape), dtype=torch.int16)
                         tensors['z_shape'] = z_shape
+
+                        if self.use_16_bit_indices:
+                            compressed_tensor = compressed_tensor.type(torch.int16)
+                            json_data_obj["ind_16"] = 1
+
                     else:
                         z, _, [_, _, indices] = self.ldm_model.encode(input_data)
                         # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
@@ -282,11 +295,9 @@ class ImageCompression:
                 tensors['weight'] = compressed_tensor
                 save_file(tensors, os.path.join(self.output_path, f"batch_{batch_idx}.safetensors"))
 
-                json_filenames = {
-                    "batched_file_name": f"batch_{batch_idx}.safetensors",
-                    "file_name_list": list(full_filename),
-                }
-                json_object = json.dumps(json_filenames, indent=4)
+                json_data_obj["batched_file_name"] = f"batch_{batch_idx}.safetensors"
+                json_data_obj["file_name_list"] = list(full_filename)
+                json_object = json.dumps(json_data_obj, indent=4)
 
                 with open(os.path.join(self.output_path, f"batch_{batch_idx}.json"), "w") as jsonfile:
                     jsonfile.write(json_object)
@@ -305,6 +316,7 @@ def main() -> None:
     parser.add_argument('--dc', help="decompresses encoding", action='store_true')
     parser.add_argument('--vq_ind', help="generates vqgan encoding instead of indices", action='store_true')
     parser.add_argument('--aspect', help="preserves aspect ratio resize by given image size", action='store_true')
+    parser.add_argument('--ind_16', help="saves vq indices as 16 bit tensors", action='store_true')
 
     args = parser.parse_args()
 
@@ -319,6 +331,7 @@ def main() -> None:
         use_decompress=args.dc,
         batch_size=args.batch,
         keep_aspect_ratio=args.aspect,
+        use_16_bit_indices=args.ind_16,
     )
     image_compression.process()
 
