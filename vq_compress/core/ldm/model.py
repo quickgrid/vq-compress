@@ -3,6 +3,8 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import xformers.ops
+from einops import rearrange
 
 
 def nonlinearity(x):
@@ -129,6 +131,82 @@ class ResnetBlock(nn.Module):
         return x + h
 
 
+def get_xformers_flash_attention_op(q, k, v):
+    """Copied from,
+    https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/sd_hijack_optimizations.py.
+    """
+    try:
+        flash_attention_op = xformers.ops.MemoryEfficientAttentionFlashAttentionOp
+        # flash_attention_op = xformers.ops.MemoryEfficientAttentionOp
+        fw, bw = flash_attention_op
+        if fw.supports(xformers.ops.fmha.Inputs(query=q, key=k, value=v, attn_bias=None)):
+            return flash_attention_op
+    except Exception as e:
+        print(e, "enabling flash attention")
+
+    return None
+
+
+class AttnBlockXformers(nn.Module):
+    """Copied from,
+    https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/sd_hijack_optimizations.py.
+    """
+    def __init__(self, in_channels):
+        super().__init__()
+        self.in_channels = in_channels
+
+        self.norm = Normalize(in_channels)
+        self.q = torch.nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=1,
+            stride=1,
+            padding=0
+        )
+        self.k = torch.nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=1,
+            stride=1,
+            padding=0
+        )
+        self.v = torch.nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=1,
+            stride=1,
+            padding=0
+        )
+        self.proj_out = torch.nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=1,
+            stride=1,
+            padding=0
+        )
+
+    def forward(self, x):
+        h_ = x
+        h_ = self.norm(h_)
+        q = self.q(h_)
+        k = self.k(h_)
+        v = self.v(h_)
+        b, c, h, w = q.shape
+        q, k, v = map(lambda t: rearrange(t, 'b c h w -> b (h w) c'), (q, k, v))
+        # dtype = q.dtype
+        # if True:
+        #     q, k = q.float(), k.float()
+        q = q.contiguous()
+        k = k.contiguous()
+        v = v.contiguous()
+        # out = xformers.ops.memory_efficient_attention(q, k, v, op=get_xformers_flash_attention_op(q, k, v))
+        out = xformers.ops.memory_efficient_attention(q, k, v)
+        # out = out.to(dtype)
+        out = rearrange(out, 'b (h w) c -> b c h w', h=h)
+        out = self.proj_out(out)
+        return x + out
+
+
 class AttnBlock(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
@@ -192,10 +270,12 @@ class AttnBlock(nn.Module):
 
 
 def make_attn(in_channels, attn_type="vanilla"):
-    assert attn_type in ["vanilla", "linear", "none"], f'attn_type {attn_type} unknown'
+    assert attn_type in ["vanilla", "xformers", "none"], f'attn_type {attn_type} unknown'
     print(f"making attention of type '{attn_type}' with {in_channels} in_channels")
     if attn_type == "vanilla":
         return AttnBlock(in_channels)
+    if attn_type == "xformers":
+        return AttnBlockXformers(in_channels)
     elif attn_type == "none":
         return nn.Identity(in_channels)
 

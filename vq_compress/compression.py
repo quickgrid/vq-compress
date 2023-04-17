@@ -23,10 +23,10 @@ exts = ['jpg', 'jpeg', 'png']
 
 
 def custom_to_pil(x):
-    x = x.detach().cpu()
     x = torch.clamp(x, -1., 1.)
     x = (x + 1.) / 2.
-    x = x.permute(1, 2, 0).numpy()
+    x = x.permute(1, 2, 0)
+    x = x.detach().cpu().numpy()
     x = (255 * x).astype(np.uint8)
     x = Image.fromarray(x)
     if not x.mode == "RGB":
@@ -122,7 +122,10 @@ class ImageCompression:
             use_decompress: bool = True,
             keep_aspect_ratio: bool = False,
             use_16_bit_indices: bool = True,
+            use_float16_precision: bool = True,
+            use_xformers: bool = False,
     ):
+        self.use_xformers = use_xformers
         self.use_16_bit_indices = use_16_bit_indices
         self.use_decompress = use_decompress
         self.vq_ind = vq_ind
@@ -133,6 +136,8 @@ class ImageCompression:
         self.image_size = image_size
         self.batch_size = batch_size
         self.num_workers = num_workers
+
+        self.precision_type = torch.float16 if use_float16_precision else torch.float32
 
         self.output_path = self.output_path or self.input_path
         # dest_path = f'{args.dest}/output'
@@ -148,7 +153,7 @@ class ImageCompression:
             img_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            # pin_memory=True,
+            pin_memory=True,
             num_workers=self.num_workers,
             drop_last=False,
             collate_fn=collate_fn,
@@ -217,6 +222,9 @@ class ImageCompression:
         del sd
         del pl_sd
 
+        for i, p in enumerate(self.ldm_model.parameters()):
+                p.requires_grad_(False)
+
     def process(self) -> None:
         if self.use_decompress:
             self.decompress()
@@ -232,8 +240,10 @@ class ImageCompression:
 
                 full_filename_list = loaded_json_data['file_name_list']
 
+                # with torch.autocast(device_type='cuda', dtype=torch.float16):
                 if self.use_kl:
-                    xrec = self.ldm_model.decode(input_data)
+                    with torch.autocast(device_type=self.device, dtype=self.precision_type):
+                        xrec = self.ldm_model.decode(input_data)
                     for idx, fname in enumerate(full_filename_list):
                         x0 = custom_to_pil(xrec[idx])
                         x0.save(os.path.join(self.output_path, f"{fname[0]}"))
@@ -250,13 +260,16 @@ class ImageCompression:
                             input_data, tuple(z_shaped_loaded)
                         )
 
-                        xrec = self.ldm_model.decode(out)
+                        with torch.autocast(device_type=self.device, dtype=self.precision_type):
+                            xrec = self.ldm_model.decode(out)
+
                         for idx, fname in enumerate(full_filename_list):
                             x0 = custom_to_pil(xrec[idx])
                             x0.save(os.path.join(self.output_path, f"{fname[0]}"))
 
                     else:
-                        xrec = self.ldm_model.decode(input_data)
+                        with torch.autocast(device_type=self.device, dtype=self.precision_type):
+                            xrec = self.ldm_model.decode(input_data)
                         for idx, fname in enumerate(full_filename_list):
                             x0 = custom_to_pil(xrec[idx])
                             x0.save(os.path.join(self.output_path, f"{fname[0]}"))
@@ -269,12 +282,17 @@ class ImageCompression:
                 tensors = {}
                 json_data_obj = {}
 
+                # with torch.autocast(device_type='cuda', dtype=torch.float16):
                 if self.use_kl:
-                    posterior = self.ldm_model.encode(input_data)
-                    compressed_tensor = posterior.sample()
+                    with torch.autocast(device_type=self.device, dtype=self.precision_type):
+                        posterior = self.ldm_model.encode(input_data)
+                        compressed_tensor = posterior.sample()
+
                 else:
                     if self.vq_ind:
-                        z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+                        with torch.autocast(device_type=self.device, dtype=self.precision_type):
+                            z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+
                         compressed_tensor = indices
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
                         z_shape = torch.tensor(list(z_shape), dtype=torch.int16)
@@ -285,7 +303,9 @@ class ImageCompression:
                             json_data_obj["ind_16"] = 1
 
                     else:
-                        z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+                        with torch.autocast(device_type=self.device, dtype=self.precision_type):
+                            z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+
                         # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
                         compressed_tensor = self.ldm_model.quantize.get_codebook_entry(
@@ -317,6 +337,8 @@ def main() -> None:
     parser.add_argument('--vq_ind', help="generates vqgan encoding instead of indices", action='store_true')
     parser.add_argument('--aspect', help="preserves aspect ratio resize by given image size", action='store_true')
     parser.add_argument('--ind_16', help="saves vq indices as 16 bit tensors", action='store_true')
+    parser.add_argument('--float16', help="process in half precision", action='store_true')
+    parser.add_argument('--xformers', help="use xformers to save memory", action='store_true')
 
     args = parser.parse_args()
 
@@ -332,6 +354,8 @@ def main() -> None:
         batch_size=args.batch,
         keep_aspect_ratio=args.aspect,
         use_16_bit_indices=args.ind_16,
+        use_float16_precision=args.float16,
+        use_xformers=args.xformers,
     )
     image_compression.process()
 
