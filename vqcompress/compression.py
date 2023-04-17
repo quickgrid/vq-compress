@@ -3,7 +3,7 @@ import json
 import os
 import pathlib
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -15,7 +15,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
-from vq_compress.core.ldm.util import instantiate_from_config
+from vqcompress.core.ldm.util import instantiate_from_config
 
 torch.set_grad_enabled(False)
 
@@ -178,52 +178,37 @@ class ImageCompression:
         config = OmegaConf.load(cfg_path)
         pl_sd = torch.load(ckpt_path, map_location="cpu")
         sd = pl_sd["state_dict"]
+        sd_keys = sd.keys()
 
-        key_delete_list = []
-        for dkey in sd.keys():
-            if dkey.split('.')[0] == 'loss':
-                key_delete_list.append(dkey)
+        def delete_model_layers(layer_initial: str):
+            key_delete_list = []
+            for dkey in sd_keys:
+                if dkey.split('.')[0] == layer_initial:
+                    key_delete_list.append(dkey)
 
-        for k in key_delete_list:
-            del sd[f'{k}']
+            for k in key_delete_list:
+                del sd[f'{k}']
 
-        key_delete_list = []
-        for dkey in sd.keys():
-            if dkey.split('.')[0] == 'model_ema':
-                key_delete_list.append(dkey)
+        for i in ['loss', 'model_ema']:
+            delete_model_layers(i)
 
-        for k in key_delete_list:
-            del sd[f'{k}']
-
-        key_delete_list = []
         if use_decompress:
-            for dkey in sd.keys():
-                if dkey.split('.')[0] == 'quant_conv':
-                    key_delete_list.append(dkey)
-            for dkey in sd.keys():
-                if dkey.split('.')[0] == 'encoder':
-                    key_delete_list.append(dkey)
+            for i in ['quant_conv', 'encoder']:
+                delete_model_layers(i)
         else:
-            for dkey in sd.keys():
-                if dkey.split('.')[0] == 'post_quant_conv':
-                    key_delete_list.append(dkey)
-            for dkey in sd.keys():
-                if dkey.split('.')[0] == 'decoder':
-                    key_delete_list.append(dkey)
-
-        for k in key_delete_list:
-            del sd[f'{k}']
+            for i in ['post_quant_conv', 'decoder']:
+                delete_model_layers(i)
 
         # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
         self.ldm_model.load_state_dict(sd, strict=False)
         self.ldm_model = self.ldm_model.to(device)
         self.ldm_model.eval()
+        # for i, p in enumerate(self.ldm_model.parameters()):
+        #         p.requires_grad_(False)
+
         del sd
         del pl_sd
-
-        for i, p in enumerate(self.ldm_model.parameters()):
-                p.requires_grad_(False)
 
     def process(self) -> None:
         if self.use_decompress:
@@ -331,7 +316,7 @@ def main() -> None:
     parser.add_argument('--cfg', help="model config file path", type=pathlib.Path)
     parser.add_argument('--ckpt', help="pretrained encode decode model path for config file", type=pathlib.Path)
     parser.add_argument('--img_size', metavar='--img-size', help="image size for processing", default=512, type=int)
-    parser.add_argument('--batch', help="process image count", default=2, type=int)
+    parser.add_argument('--batch', help="process image count", default=1, type=int)
     parser.add_argument('--kl', help="generates output from kl autoencoder", action='store_true')
     parser.add_argument('--dc', help="decompresses encoding", action='store_true')
     parser.add_argument('--vq_ind', help="generates vqgan encoding instead of indices", action='store_true')

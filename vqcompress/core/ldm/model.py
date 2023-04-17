@@ -3,8 +3,12 @@
 import numpy as np
 import torch
 import torch.nn as nn
-import xformers.ops
 from einops import rearrange
+
+try:
+    import xformers.ops
+except ModuleNotFoundError as err:
+    print(err)
 
 
 def nonlinearity(x):
@@ -151,6 +155,7 @@ class AttnBlockXformers(nn.Module):
     """Copied from,
     https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/sd_hijack_optimizations.py.
     """
+
     def __init__(self, in_channels):
         super().__init__()
         self.in_channels = in_channels
@@ -255,7 +260,7 @@ class AttnBlock(nn.Module):
         q = q.permute(0, 2, 1)  # b,hw,c
         k = k.reshape(b, c, h * w)  # b,c,hw
         w_ = torch.bmm(q, k)  # b,hw,hw    w[b,i,j]=sum_c q[b,i,c]k[b,c,j]
-        w_ = w_ * (int(c) ** (-0.5))
+        w_ *= int(c) ** (-0.5)
         w_ = torch.nn.functional.softmax(w_, dim=2)
 
         # attend to values
@@ -288,7 +293,8 @@ class Encoder(nn.Module):
             **ignore_kwargs
     ):
         super().__init__()
-        if use_linear_attn: attn_type = "linear"
+        if use_linear_attn:
+            attn_type = "linear"
         self.ch = ch
         self.temb_ch = 0
         self.num_resolutions = len(ch_mult)

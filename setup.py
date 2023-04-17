@@ -1,10 +1,10 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='vq_compress',
+    name='vqcompress',
     author='Asif Ahmed',
     description='Image compression with vqgan, autoencoder etc.',
-    version='0.1.5',
+    version='0.1.6',
     url='https://github.com/quickgrid/vq-compress',
     packages=find_packages(),
     classifiers=[
@@ -22,6 +22,7 @@ setup(
         'pillow',
         'tqdm',
         'einops',
-        'lightning'
+        'lightning',
+        'xformers'
     ]
 )

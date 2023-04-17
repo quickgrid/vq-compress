@@ -3,10 +3,10 @@ import numpy as np
 import torch
 from torch.functional import F
 
-from vq_compress.core.ldm.distributions import DiagonalGaussianDistribution
-from vq_compress.core.ldm.model import Encoder, Decoder
-from vq_compress.core.ldm.quantize import GumbelQuantize
-from vq_compress.core.ldm.quantize import VectorQuantizer
+from vqcompress.core.ldm.distributions import DiagonalGaussianDistribution
+from vqcompress.core.ldm.model import Encoder, Decoder
+from vqcompress.core.ldm.quantize import GumbelQuantize
+from vqcompress.core.ldm.quantize import VectorQuantizer
 
 
 class AutoencoderKL(pl.LightningModule):

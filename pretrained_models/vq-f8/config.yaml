@@ -1,9 +1,9 @@
 model:
   base_learning_rate: 4.5e-06
-  target: vq_compress.core.ldm.autoencoder.VQModel
+  target: vqcompress.core.ldm.autoencoder.VQModel
   params:
     embed_dim: 4
-    n_embed: 256
+    n_embed: 16384
     monitor: val/rec_loss
     ddconfig:
       double_z: false

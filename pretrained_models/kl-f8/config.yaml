@@ -1,23 +1,21 @@
 model:
   base_learning_rate: 4.5e-06
-  target: vq_compress.core.ldm.autoencoder.GumbelVQ
+  target: vqcompress.core.ldm.autoencoder.AutoencoderKL
   params:
-    embed_dim: 256
-    n_embed: 8192
     monitor: val/rec_loss
+    embed_dim: 4
     ddconfig:
-      double_z: false
-      z_channels: 256
+      double_z: true
+      z_channels: 4
       resolution: 256
       in_channels: 3
       out_ch: 3
       ch: 128
       ch_mult:
       - 1
-      - 1
       - 2
       - 4
+      - 4
       num_res_blocks: 2
-      attn_resolutions:
-      - 32
+      attn_resolutions: []
       dropout: 0.0
