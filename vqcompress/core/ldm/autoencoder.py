@@ -79,23 +79,6 @@ class AutoencoderKL(pl.LightningModule):
     def get_last_layer(self):
         return self.decoder.conv_out.weight
 
-    @torch.no_grad()
-    def log_images(self, batch, only_inputs=False, **kwargs):
-        log = dict()
-        x = self.get_input(batch, self.image_key)
-        x = x.to(self.device)
-        if not only_inputs:
-            xrec, posterior = self(x)
-            if x.shape[1] > 3:
-                # colorize with random projection
-                assert xrec.shape[1] > 3
-                x = self.to_rgb(x)
-                xrec = self.to_rgb(xrec)
-            log["samples"] = self.decode(torch.randn_like(posterior.sample()))
-            log["reconstructions"] = xrec
-        log["inputs"] = x
-        return log
-
     def to_rgb(self, x):
         assert self.image_key == "segmentation"
         if not hasattr(self, "colorize"):
@@ -240,7 +223,6 @@ class GumbelVQ(VQModel):
                  kl_weight=1e-8,
                  remap=None,
                  ):
-
         z_channels = ddconfig["z_channels"]
         super().__init__(ddconfig,
                          # lossconfig,
@@ -256,18 +238,17 @@ class GumbelVQ(VQModel):
         # self.loss.n_classes = n_embed
         self.vocab_size = n_embed
 
-        self.quantize = GumbelQuantize(z_channels, embed_dim,
-                                       n_embed=n_embed,
-                                       kl_weight=kl_weight, temp_init=1.0,
-                                       remap=remap)
+        self.quantize = GumbelQuantize(
+            z_channels, embed_dim,
+            n_embed=n_embed,
+            kl_weight=kl_weight, temp_init=1.0,
+            remap=remap
+        )
 
         # self.temperature_scheduler = instantiate_from_config(temperature_scheduler_config)  # annealing of temp
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
-
-    def temperature_scheduling(self):
-        self.quantize.temperature = self.temperature_scheduler(self.global_step)
 
     def encode_to_prequant(self, x):
         h = self.encoder(x)
@@ -276,55 +257,3 @@ class GumbelVQ(VQModel):
 
     def decode_code(self, code_b):
         raise NotImplementedError
-
-    def training_step(self, batch, batch_idx, optimizer_idx):
-        self.temperature_scheduling()
-        x = self.get_input(batch, self.image_key)
-        xrec, qloss = self(x)
-
-        if optimizer_idx == 0:
-            # autoencode
-            aeloss, log_dict_ae = self.loss(qloss, x, xrec, optimizer_idx, self.global_step,
-                                            last_layer=self.get_last_layer(), split="train")
-
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
-            self.log("temperature", self.quantize.temperature, prog_bar=False, logger=True, on_step=True, on_epoch=True)
-            return aeloss
-
-        if optimizer_idx == 1:
-            # discriminator
-            discloss, log_dict_disc = self.loss(qloss, x, xrec, optimizer_idx, self.global_step,
-                                                last_layer=self.get_last_layer(), split="train")
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True)
-            return discloss
-
-    def validation_step(self, batch, batch_idx):
-        x = self.get_input(batch, self.image_key)
-        xrec, qloss = self(x, return_pred_indices=True)
-        aeloss, log_dict_ae = self.loss(qloss, x, xrec, 0, self.global_step,
-                                        last_layer=self.get_last_layer(), split="val")
-
-        discloss, log_dict_disc = self.loss(qloss, x, xrec, 1, self.global_step,
-                                            last_layer=self.get_last_layer(), split="val")
-        rec_loss = log_dict_ae["val/rec_loss"]
-        self.log("val/rec_loss", rec_loss,
-                 prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
-        self.log("val/aeloss", aeloss,
-                 prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True)
-        self.log_dict(log_dict_ae)
-        self.log_dict(log_dict_disc)
-        return self.log_dict
-
-    def log_images(self, batch, **kwargs):
-        log = dict()
-        x = self.get_input(batch, self.image_key)
-        x = x.to(self.device)
-        # encode
-        h = self.encoder(x)
-        h = self.quant_conv(h)
-        quant, _, _ = self.quantize(h)
-        # decode
-        x_rec = self.decode(quant)
-        log["inputs"] = x
-        log["reconstructions"] = x_rec
-        return log

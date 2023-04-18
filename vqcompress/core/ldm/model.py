@@ -4,16 +4,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 from einops import rearrange
-
+import torch.nn.functional as F
 try:
     import xformers.ops
 except ModuleNotFoundError as err:
     print(err)
-
-
-def nonlinearity(x):
-    # swish
-    return x * torch.sigmoid(x)
 
 
 def Normalize(in_channels, num_groups=32):
@@ -115,14 +110,14 @@ class ResnetBlock(nn.Module):
     def forward(self, x, temb):
         h = x
         h = self.norm1(h)
-        h = nonlinearity(h)
+        h = F.silu(h)
         h = self.conv1(h)
 
         if temb is not None:
-            h = h + self.temb_proj(nonlinearity(temb))[:, :, None, None]
+            h = h + self.temb_proj(F.silu(temb))[:, :, None, None]
 
         h = self.norm2(h)
-        h = nonlinearity(h)
+        h = F.silu(h)
         h = self.dropout(h)
         h = self.conv2(h)
 
@@ -349,7 +344,7 @@ class Encoder(nn.Module):
 
         # end
         h = self.norm_out(h)
-        h = nonlinearity(h)
+        h = F.silu(h)
         h = self.conv_out(h)
         return h
 
@@ -470,7 +465,7 @@ class Decoder(nn.Module):
             return h
 
         h = self.norm_out(h)
-        h = nonlinearity(h)
+        h = F.silu(h)
         h = self.conv_out(h)
         if self.tanh_out:
             h = torch.tanh(h)

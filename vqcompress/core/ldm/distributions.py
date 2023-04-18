@@ -1,5 +1,5 @@
-import torch
 import numpy as np
+import torch
 
 
 class DiagonalGaussianDistribution(object):
@@ -22,22 +22,26 @@ class DiagonalGaussianDistribution(object):
             return torch.Tensor([0.])
         else:
             if other is None:
-                return 0.5 * torch.sum(torch.pow(self.mean, 2)
-                                       + self.var - 1.0 - self.logvar,
-                                       dim=[1, 2, 3])
+                return 0.5 * torch.sum(
+                    torch.pow(self.mean, 2)
+                    + self.var - 1.0 - self.logvar,
+                    dim=[1, 2, 3]
+                )
             else:
                 return 0.5 * torch.sum(
                     torch.pow(self.mean - other.mean, 2) / other.var
                     + self.var / other.var - 1.0 - self.logvar + other.logvar,
-                    dim=[1, 2, 3])
+                    dim=[1, 2, 3]
+                )
 
-    def nll(self, sample, dims=[1,2,3]):
+    def nll(self, sample, dims=[1, 2, 3]):
         if self.deterministic:
             return torch.Tensor([0.])
         logtwopi = np.log(2.0 * np.pi)
         return 0.5 * torch.sum(
             logtwopi + self.logvar + torch.pow(sample - self.mean, 2) / self.var,
-            dim=dims)
+            dim=dims
+        )
 
     def mode(self):
         return self.mean
