@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import pathlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple, List
 
@@ -16,27 +17,12 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from vqcompress.core.ldm.util import instantiate_from_config
-import vqcompress.core.ldm.model
+from vqcompress.core.ldm.util import custom_to_pil
+from vqcompress.core.ldm.util import preprocess_vqgan
 
 torch.set_grad_enabled(False)
 
 exts = ['jpg', 'jpeg', 'png']
-
-
-def custom_to_pil(x):
-    x = torch.clamp(x, -1., 1.)
-    x = (x + 1.) / 2.
-    x = x.permute(1, 2, 0)
-    x = x.detach().cpu().numpy()
-    x = (255 * x).astype(np.uint8)
-    x = Image.fromarray(x)
-    if not x.mode == "RGB":
-        x = x.convert("RGB")
-    return x
-
-
-def preprocess_vqgan(x):
-    return 2. * x - 1.
 
 
 class CustomEncodingDataset(Dataset):
@@ -199,15 +185,15 @@ class ImageCompression:
             delete_model_layers(['post_quant_conv', 'decoder'])
 
         if use_xformers:
-            vqcompress.core.ldm.model.AttnBlock.forward = vqcompress.core.ldm.model.patch_xformers_attn_forward
+            import vqcompress.core.vqc.code_patching
+            import vqcompress.core.ldm.model
+            vqcompress.core.ldm.model.AttnBlock.forward = vqcompress.core.vqc.code_patching.patch_xformers_attn_forward
 
         # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
         self.ldm_model.load_state_dict(sd, strict=False)
         self.ldm_model = self.ldm_model.to(device)
         self.ldm_model.eval()
-        # for i, p in enumerate(self.ldm_model.parameters()):
-        #         p.requires_grad_(False)
 
         del sd
         del pl_sd
@@ -227,10 +213,10 @@ class ImageCompression:
 
                 full_filename_list = loaded_json_data['file_name_list']
 
-                # with torch.autocast(device_type='cuda', dtype=torch.float16):
                 if self.use_kl:
                     with torch.autocast(device_type=self.device, dtype=self.precision_type):
                         xrec = self.ldm_model.decode(input_data)
+
                     for idx, fname in enumerate(full_filename_list):
                         x0 = custom_to_pil(xrec[idx])
                         x0.save(os.path.join(self.output_path, f"{fname[0]}"))
@@ -257,6 +243,7 @@ class ImageCompression:
                     else:
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
                             xrec = self.ldm_model.decode(input_data)
+
                         for idx, fname in enumerate(full_filename_list):
                             x0 = custom_to_pil(xrec[idx])
                             x0.save(os.path.join(self.output_path, f"{fname[0]}"))
@@ -269,7 +256,6 @@ class ImageCompression:
                 tensors = {}
                 json_data_obj = {}
 
-                # with torch.autocast(device_type='cuda', dtype=torch.float16):
                 if self.use_kl:
                     with torch.autocast(device_type=self.device, dtype=self.precision_type):
                         posterior = self.ldm_model.encode(input_data)
@@ -300,9 +286,11 @@ class ImageCompression:
                         )
 
                 tensors['weight'] = compressed_tensor
-                save_file(tensors, os.path.join(self.output_path, f"batch_{batch_idx}.safetensors"))
+                output_file_name = f"batch_{batch_idx}.safetensors"
 
-                json_data_obj["batched_file_name"] = f"batch_{batch_idx}.safetensors"
+                save_file(tensors, os.path.join(self.output_path, output_file_name))
+
+                json_data_obj["batched_file_name"] = output_file_name
                 json_data_obj["file_name_list"] = list(full_filename)
                 json_object = json.dumps(json_data_obj, indent=4)
 

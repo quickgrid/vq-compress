@@ -89,23 +89,24 @@ class AutoencoderKL(pl.LightningModule):
 
 
 class VQModel(pl.LightningModule):
-    def __init__(self,
-                 ddconfig,
-                 # lossconfig,
-                 n_embed,
-                 embed_dim,
-                 ckpt_path=None,
-                 ignore_keys=[],
-                 image_key="image",
-                 colorize_nlabels=None,
-                 monitor=None,
-                 batch_resize_range=None,
-                 scheduler_config=None,
-                 lr_g_factor=1.0,
-                 remap=None,
-                 sane_index_shape=False,  # tell vector quantizer to return indices as bhw
-                 use_ema=False
-                 ):
+    def __init__(
+            self,
+            ddconfig,
+            # lossconfig,
+            n_embed,
+            embed_dim,
+            ckpt_path=None,
+            ignore_keys=[],
+            image_key="image",
+            colorize_nlabels=None,
+            monitor=None,
+            batch_resize_range=None,
+            scheduler_config=None,
+            lr_g_factor=1.0,
+            remap=None,
+            sane_index_shape=False,  # tell vector quantizer to return indices as bhw
+            use_ema=False
+    ):
         super().__init__()
         self.embed_dim = embed_dim
         self.n_embed = n_embed
@@ -145,10 +146,6 @@ class VQModel(pl.LightningModule):
         if len(missing) > 0:
             print(f"Missing Keys: {missing}")
             print(f"Unexpected Keys: {unexpected}")
-
-    def on_train_batch_end(self, *args, **kwargs):
-        if self.use_ema:
-            self.model_ema(self)
 
     def encode(self, x):
         h = self.encoder(x)
@@ -209,31 +206,33 @@ class VQModel(pl.LightningModule):
 
 
 class GumbelVQ(VQModel):
-    def __init__(self,
-                 ddconfig,
-                 # lossconfig,
-                 n_embed,
-                 embed_dim,
-                 # temperature_scheduler_config,
-                 ckpt_path=None,
-                 ignore_keys=[],
-                 image_key="image",
-                 colorize_nlabels=None,
-                 monitor=None,
-                 kl_weight=1e-8,
-                 remap=None,
-                 ):
+    def __init__(
+            self,
+            ddconfig,
+            # lossconfig,
+            n_embed,
+            embed_dim,
+            # temperature_scheduler_config,
+            ckpt_path=None,
+            ignore_keys=[],
+            image_key="image",
+            colorize_nlabels=None,
+            monitor=None,
+            kl_weight=1e-8,
+            remap=None,
+    ):
         z_channels = ddconfig["z_channels"]
-        super().__init__(ddconfig,
-                         # lossconfig,
-                         n_embed,
-                         embed_dim,
-                         ckpt_path=None,
-                         ignore_keys=ignore_keys,
-                         image_key=image_key,
-                         colorize_nlabels=colorize_nlabels,
-                         monitor=monitor,
-                         )
+        super().__init__(
+            ddconfig,
+            # lossconfig,
+            n_embed,
+            embed_dim,
+            ckpt_path=None,
+            ignore_keys=ignore_keys,
+            image_key=image_key,
+            colorize_nlabels=colorize_nlabels,
+            monitor=monitor,
+        )
 
         # self.loss.n_classes = n_embed
         self.vocab_size = n_embed
