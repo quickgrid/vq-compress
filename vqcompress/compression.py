@@ -3,7 +3,7 @@ import json
 import os
 import pathlib
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import torch
@@ -16,6 +16,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from vqcompress.core.ldm.util import instantiate_from_config
+import vqcompress.core.ldm.model
 
 torch.set_grad_enabled(False)
 
@@ -180,24 +181,25 @@ class ImageCompression:
         sd = pl_sd["state_dict"]
         sd_keys = sd.keys()
 
-        def delete_model_layers(layer_initial: str):
-            key_delete_list = []
-            for dkey in sd_keys:
-                if dkey.split('.')[0] == layer_initial:
-                    key_delete_list.append(dkey)
+        def delete_model_layers(layer_initial_list: List[str]):
+            for layer_initial in layer_initial_list:
+                key_delete_list = []
+                for dkey in sd_keys:
+                    if dkey.split('.')[0] == layer_initial:
+                        key_delete_list.append(dkey)
 
-            for k in key_delete_list:
-                del sd[f'{k}']
+                for k in key_delete_list:
+                    del sd[f'{k}']
 
-        for i in ['loss', 'model_ema']:
-            delete_model_layers(i)
+        delete_model_layers(['loss', 'model_ema'])
 
         if use_decompress:
-            for i in ['quant_conv', 'encoder']:
-                delete_model_layers(i)
+            delete_model_layers(['quant_conv', 'encoder'])
         else:
-            for i in ['post_quant_conv', 'decoder']:
-                delete_model_layers(i)
+            delete_model_layers(['post_quant_conv', 'decoder'])
+
+        if use_xformers:
+            vqcompress.core.ldm.model.AttnBlock.forward = vqcompress.core.ldm.model.patch_xformers_attn_forward
 
         # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
