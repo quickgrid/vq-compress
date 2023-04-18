@@ -38,7 +38,7 @@ class GumbelQuantize(nn.Module):
             self.unknown_index = unknown_index  # "random" or "extra" or integer
             if self.unknown_index == "extra":
                 self.unknown_index = self.re_embed
-                self.re_embed = self.re_embed + 1
+                self.re_embed += 1
             print(f"Remapping {self.n_embed} indices to {self.re_embed} indices. "
                   f"Using {self.unknown_index} for unknown indices.")
         else:
@@ -140,7 +140,7 @@ class VectorQuantizer(nn.Module):
             self.unknown_index = unknown_index  # "random" or "extra" or integer
             if self.unknown_index == "extra":
                 self.unknown_index = self.re_embed
-                self.re_embed = self.re_embed + 1
+                self.re_embed += 1
             print(f"Remapping {self.n_e} indices to {self.re_embed} indices. "
                   f"Using {self.unknown_index} for unknown indices.")
         else:

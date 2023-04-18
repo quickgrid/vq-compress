@@ -244,7 +244,7 @@ class Encoder(nn.Module):
             down.attn = attn
             if i_level != self.num_resolutions - 1:
                 down.downsample = Downsample(block_in, resamp_with_conv)
-                curr_res = curr_res // 2
+                curr_res //= 2
             self.down.append(down)
 
         # middle
@@ -309,7 +309,8 @@ class Decoder(nn.Module):
             attn_type="vanilla", **ignorekwargs
     ):
         super().__init__()
-        if use_linear_attn: attn_type = "linear"
+        if use_linear_attn:
+            attn_type = "linear"
         self.ch = ch
         self.temb_ch = 0
         self.num_resolutions = len(ch_mult)
@@ -375,7 +376,7 @@ class Decoder(nn.Module):
             up.attn = attn
             if i_level != 0:
                 up.upsample = Upsample(block_in, resamp_with_conv)
-                curr_res = curr_res * 2
+                curr_res *= 2
             self.up.insert(0, up)  # prepend to get consistent order
 
         # end
@@ -390,7 +391,7 @@ class Decoder(nn.Module):
 
     def forward(self, z):
         # assert z.shape[1:] == self.z_shape[1:]
-        self.last_z_shape = z.shape
+        # self.last_z_shape = z.shape
 
         # timestep embedding
         temb = None

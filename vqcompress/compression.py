@@ -2,90 +2,20 @@ import argparse
 import json
 import os
 import pathlib
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Tuple, List
+from typing import List
 
-import numpy as np
 import torch
-from PIL import Image
 from omegaconf import OmegaConf
-from safetensors import safe_open
 from safetensors.torch import save_file
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from vqcompress.core.ldm.util import instantiate_from_config
 from vqcompress.core.ldm.util import custom_to_pil
-from vqcompress.core.ldm.util import preprocess_vqgan
+from vqcompress.core.ldm.util import instantiate_from_config
+from vqcompress.core.vqc.config import CompressionConfig
+from vqcompress.core.vqc.datasets import CustomImageDataset, CustomEncodingDataset
 
 torch.set_grad_enabled(False)
-
-exts = ['jpg', 'jpeg', 'png']
-
-
-class CustomEncodingDataset(Dataset):
-    def __init__(
-            self,
-            input_path: str,
-            image_size: int,
-    ) -> None:
-        super().__init__()
-        self.input_path = input_path
-        self.image_size = image_size
-        encoding_exts = ['json']
-        self.files_list = [p for enc_ext in encoding_exts for p in Path(f'{input_path}').glob(f'*.{enc_ext}')]
-
-    def __len__(self) -> int:
-        return len(self.files_list)
-
-    def __getitem__(self, index) -> Tuple[dict, dict]:
-        path = self.files_list[index]
-
-        with open(path, "r") as jsonfile:
-            data = json.load(jsonfile)
-            tensors = {}
-            with safe_open(
-                    os.path.join(path.parent.absolute(), data['batched_file_name']),
-                    framework="pt",
-                    device="cuda"
-            ) as f:
-                for key in f.keys():
-                    tensors[key] = f.get_tensor(key)
-
-        return tensors, data
-
-
-class CustomImageDataset(Dataset):
-    def __init__(
-            self,
-            input_path: str,
-            image_size: int,
-            keep_aspect_ratio: bool,
-    ) -> None:
-        super().__init__()
-
-        self.input_path = input_path
-        self.image_size = image_size
-        self.files_list = [p for ext in exts for p in Path(f'{input_path}').glob(f'*.{ext}')]
-
-        resize_type = transforms.Resize(image_size) if keep_aspect_ratio else transforms.Resize((image_size, image_size))
-
-        self.transform = transforms.Compose([
-            resize_type,
-            transforms.ToTensor(),
-            transforms.Lambda(preprocess_vqgan),
-        ])
-
-    def __len__(self) -> int:
-        return len(self.files_list)
-
-    def __getitem__(self, index) -> Tuple[torch.Tensor, str, str]:
-        path = self.files_list[index]
-        img = Image.open(path).convert('RGB')
-        transformed_img = self.transform(img)
-        return transformed_img, path.stem, path.name
 
 
 def collate_fn(batch):
@@ -225,10 +155,9 @@ class ImageCompression:
                         if 'ind_16' in loaded_json_data.keys():
                             input_data = input_data.type(torch.int64)
 
-                        if 'z_shape' in input_data_dict.keys():
-                            z_shaped_loaded = input_data_dict['z_shape']
+                        if 'z_shape' in loaded_json_data.keys():
+                            z_shaped_loaded = loaded_json_data['z_shape']
 
-                        z_shaped_loaded = z_shaped_loaded.cpu().numpy()[0]
                         out = self.ldm_model.quantize.get_codebook_entry(
                             input_data, tuple(z_shaped_loaded)
                         )
@@ -268,8 +197,7 @@ class ImageCompression:
 
                         compressed_tensor = indices
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
-                        z_shape = torch.tensor(list(z_shape), dtype=torch.int16)
-                        tensors['z_shape'] = z_shape
+                        json_data_obj['z_shape'] = z_shape
 
                         if self.use_16_bit_indices:
                             compressed_tensor = compressed_tensor.type(torch.int16)
@@ -290,7 +218,7 @@ class ImageCompression:
 
                 save_file(tensors, os.path.join(self.output_path, output_file_name))
 
-                json_data_obj["batched_file_name"] = output_file_name
+                json_data_obj[CompressionConfig.key_output_filename] = output_file_name
                 json_data_obj["file_name_list"] = list(full_filename)
                 json_object = json.dumps(json_data_obj, indent=4)
 
@@ -313,7 +241,7 @@ def main() -> None:
     parser.add_argument('--aspect', help="preserves aspect ratio resize by given image size", action='store_true')
     parser.add_argument('--ind_16', help="saves vq indices as 16 bit tensors", action='store_true')
     parser.add_argument('--float16', help="process in half precision", action='store_true')
-    parser.add_argument('--xformers', help="use xformers to save memory", action='store_true')
+    parser.add_argument('--xformers', help="use xformers to save memory and speedup in some cases", action='store_true')
 
     args = parser.parse_args()
 
