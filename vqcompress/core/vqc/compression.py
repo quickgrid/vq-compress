@@ -1,4 +1,5 @@
 import argparse
+import gc
 import json
 import os
 import pathlib
@@ -251,6 +252,14 @@ class ImageCompression:
                         out = self.ldm_model.quantize.get_codebook_entry(
                             input_data, tuple(z_shaped_loaded)
                         )
+
+                        try:
+                            del input_data
+                            gc.collect()
+                            torch.cuda.empty_cache()
+                        except Exception as e:
+                            print('Failed to clear memory')
+                            print(e)
 
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
                             xrec = self.ldm_model.decode(out)
