@@ -47,7 +47,7 @@ vq decompress with indices,
 
 If `--dc` flag is provided it runs decompression otherwise compresses input.
 
-`--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`.
+`--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`. May fail for large images not fitting in gpu memory.
 
 For `--ind_bit` with possible values `8` or `16` vqgan indices are saved as uint8 or int16 reducing compressed output file size. Only needed for compression. 
 
