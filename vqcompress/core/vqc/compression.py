@@ -253,16 +253,13 @@ class ImageCompression:
                             input_data, tuple(z_shaped_loaded)
                         )
 
-                        try:
-                            del input_data
-                            gc.collect()
-                            torch.cuda.empty_cache()
-                        except Exception as e:
-                            print('Failed to clear memory')
-                            print(e)
-
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
                             xrec = self.ldm_model.decode(out)
+
+                        del out
+                        del input_data
+                        # gc.collect()
+                        torch.cuda.empty_cache()
 
                         for idx, fname in enumerate(full_filename_list):
                             x0 = custom_to_pil(xrec[idx])
@@ -293,8 +290,14 @@ class ImageCompression:
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
                             z, _, [_, _, indices] = self.ldm_model.encode(input_data)
 
-                        compressed_tensor = indices
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
+
+                        # del _
+                        # del input_data
+                        # del z
+                        # torch.cuda.empty_cache()
+
+                        compressed_tensor = indices
                         json_data_obj['z_shape'] = z_shape
 
                         compressed_tensor = compressed_tensor.type(self.saved_indices_bits_torch)
@@ -304,11 +307,23 @@ class ImageCompression:
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
                             z, _, [_, _, indices] = self.ldm_model.encode(input_data)
 
-                        # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
-                        z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
-                        compressed_tensor = self.ldm_model.quantize.get_codebook_entry(
-                            indices, z_shape
-                        )
+                        compressed_tensor = z
+
+                        # # input_img_size / downscale value for h, w. For vq-f4 downsample by 4.
+                        # z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
+                        #
+                        # del _
+                        # del z
+                        # del input_data
+                        # # gc.collect()
+                        # torch.cuda.empty_cache()
+                        #
+                        # compressed_tensor = self.ldm_model.quantize.get_codebook_entry(
+                        #     indices, z_shape
+                        # )
+                        #
+                        # del indices
+                        # torch.cuda.empty_cache()
 
                 tensors['weight'] = compressed_tensor
                 output_file_name = f"batch_{batch_idx}.safetensors"
