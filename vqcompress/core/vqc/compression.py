@@ -2,20 +2,108 @@ import argparse
 import json
 import os
 import pathlib
+from pathlib import Path
 from typing import List
+from typing import Tuple
 
+import numpy as np
 import torch
+from PIL import Image
 from omegaconf import OmegaConf
+from safetensors import safe_open
 from safetensors.torch import save_file
 from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from torchvision import transforms
 from tqdm import tqdm
 
-from vqcompress.core.ldm.util import custom_to_pil
 from vqcompress.core.ldm.util import instantiate_from_config
 from vqcompress.core.vqc.config import CompressionConfig
-from vqcompress.core.vqc.datasets import CustomImageDataset, CustomEncodingDataset
 
 torch.set_grad_enabled(False)
+
+
+class CustomEncodingDataset(Dataset):
+    def __init__(
+            self,
+            input_path: str,
+            image_size: int,
+    ) -> None:
+        super().__init__()
+        self.input_path = input_path
+        self.image_size = image_size
+        encoding_exts = ['json']
+        self.files_list = [p for enc_ext in encoding_exts for p in Path(f'{input_path}').glob(f'*.{enc_ext}')]
+
+    def __len__(self) -> int:
+        return len(self.files_list)
+
+    def __getitem__(self, index) -> Tuple[dict, dict]:
+        path = self.files_list[index]
+
+        with open(path, "r") as jsonfile:
+            data = json.load(jsonfile)
+            tensors = {}
+            with safe_open(
+                    os.path.join(path.parent.absolute(), data[CompressionConfig.key_output_filename]),
+                    framework="pt",
+                    device="cuda"
+                    # device="cpu"
+            ) as f:
+                for key in f.keys():
+                    tensors[key] = f.get_tensor(key)
+
+        return tensors, data
+
+
+class CustomImageDataset(Dataset):
+    def __init__(
+            self,
+            input_path: str,
+            image_size: int,
+            keep_aspect_ratio: bool,
+    ) -> None:
+        super().__init__()
+
+        self.input_path = input_path
+        self.image_size = image_size
+        self.files_list = [
+            p for ext in CompressionConfig.dataset_image_exts for p in Path(f'{input_path}').glob(f'*.{ext}')
+        ]
+
+        resize_type = transforms.Resize(image_size) if keep_aspect_ratio else transforms.Resize(
+            (image_size, image_size))
+
+        self.transform = transforms.Compose([
+            resize_type,
+            transforms.ToTensor(),
+            transforms.Lambda(preprocess_vqgan),
+        ])
+
+    def __len__(self) -> int:
+        return len(self.files_list)
+
+    def __getitem__(self, index) -> Tuple[torch.Tensor, str, str]:
+        path = self.files_list[index]
+        img = Image.open(path).convert('RGB')
+        transformed_img = self.transform(img)
+        return transformed_img, path.stem, path.name
+
+
+def custom_to_pil(x):
+    x = torch.clamp(x, -1., 1.)
+    x = (x + 1.) / 2.
+    x = x.permute(1, 2, 0)
+    x = x.detach().cpu().numpy()
+    x = (255 * x).astype(np.uint8)
+    x = Image.fromarray(x)
+    if not x.mode == "RGB":
+        x = x.convert("RGB")
+    return x
+
+
+def preprocess_vqgan(x):
+    return 2. * x - 1.
 
 
 def collate_fn(batch):
@@ -189,6 +277,8 @@ class ImageCompression:
                     with torch.autocast(device_type=self.device, dtype=self.precision_type):
                         posterior = self.ldm_model.encode(input_data)
                         compressed_tensor = posterior.sample()
+                        # print("TT" * 30)
+                        # print(compressed_tensor.shape)
 
                 else:
                     if self.vq_ind:
@@ -227,7 +317,7 @@ class ImageCompression:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Generate captions from images.')
+    parser = argparse.ArgumentParser(description='Compress and decompress images.')
     parser.add_argument('-s', '--src', required=True, help="path to source folder", type=pathlib.Path)
     parser.add_argument('-d', '--dest', help="path to destination folder", type=pathlib.Path)
     parser.add_argument('--device', help="use cpu or cuda gpu", default='cuda', type=str)
