@@ -2,6 +2,8 @@
 
 Image compression and reconstruction using pretrained autoencoder, vqgan first stage models from [latent diffusion](https://github.com/CompVis/latent-diffusion/tree/a506df5756472e2ebaf9078affdde2c4f1502cd4) and [taming transformer](https://github.com/CompVis/taming-transformers/tree/3ba01b241669f5ade541ce990f7650a3b8f65318) repo. Model codes, configs are copied from these repos with unnecessary parts removed.
 
+Saves autoencoding model encoded output as compressed format. This output is passed to decoder on receiver side to reconstruct a lossy compressed version original image. Based on chosen seettings of autoencoding models the encoded output or its indices in case vqgan can be saved which can be used for reconstuction.
+
 To save vram and prevent extra processing only encoder or decoder weights based on compression or decompression task is loaded. Training code is removed but should be able to load models trained on original repo. 
 
 Compressed data is saved in `safetensors` format. For compression if batch size larger than 1 is used then each output contains encode output tensor for the whole batch.
