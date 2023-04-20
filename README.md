@@ -10,7 +10,7 @@ Compressed data is saved in `safetensors` format. For compression if batch size 
 
 Compressing with vqgan model by removing `--kl` and adding `--vq_ind` for `vq-f4`, `vq-f8` should provide best compression ratio. Further using a zip program to compress the saved output may provide better quality and file size reduction than using jpeg with quality reduced to around 60 percent. A good quality pretrained reconstruction model for `vq-f8` followed by zip compression may provide best results in terms of file size.
 
-
+When using `--vq_ind` also adding `ind_bit` to `8` should give the most compressed output though not best quality. It will not work with most configs as output value ranges need to be from 0-255. Only [this](https://github.com/quickgrid/vq-compress/tree/main/configs/vq-f8-n256) config and its associated model will work with `int_bit` set to `8`.
 
 ## Install 
 
@@ -29,7 +29,7 @@ kl compress,
 
 vq compress with indices,
 
-> python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --batch 1 --img_size 512 --vq_ind
+> python compression.py -s "SRC_PATH" -d "DEST_PATH" --cfg "CONFIG_YAML_PATH" --ckpt "VAE_CKPT_PATH" --batch 1 --img_size 512 --vq_ind --ind_bit 16
 
 
 ### Decompress
@@ -49,7 +49,11 @@ If `--dc` flag is provided it runs decompression otherwise compresses input.
 
 `--aspect` resize image keeping aspect ratio with smaller dimension size set to `--img_size`.
 
-For `--ind_16` vqgan indices are saved as int16 reducing compressed output file size. Only needed for compression. 
+For `--ind_bit` with possible values `8` or `16` vqgan indices are saved as uint8 or int16 reducing compressed output file size. Only needed for compression. 
+
+`--xformers` uses xformers if available to reduce memory consumption and may also increse speed.
+
+`--float16` process in float16 precision to reduce memory consumption. 
 
 Currently 3 types of data compression is available. 
 - For `--kl` autoencoder kl pretrained model encode output is saved.
