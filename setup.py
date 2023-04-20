@@ -4,7 +4,7 @@ setup(
     name='vqcompress',
     author='Asif Ahmed',
     description='Image compression with vqgan, autoencoder etc.',
-    version='0.1.10',
+    version='0.1.11',
     url='https://github.com/quickgrid/vq-compress',
     packages=find_packages(),
     classifiers=[
