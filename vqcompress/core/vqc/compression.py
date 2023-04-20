@@ -45,7 +45,7 @@ class CustomEncodingDataset(Dataset):
             data = json.load(jsonfile)
             tensors = {}
             with safe_open(
-                    os.path.join(path.parent.absolute(), data[CompressionConfig.key_output_filename]),
+                    os.path.join(path.parent.absolute(), data[CompressionConfig.output_filename_key]),
                     framework="pt",
                     device="cuda"
                     # device="cpu"
@@ -126,12 +126,12 @@ class ImageCompression:
             vq_ind: bool = True,
             use_decompress: bool = True,
             keep_aspect_ratio: bool = False,
-            use_16_bit_indices: bool = True,
+            saved_indices_bits: int = 16,
             use_float16_precision: bool = True,
             use_xformers: bool = False,
     ):
+        self.saved_indices_bits = saved_indices_bits
         self.use_xformers = use_xformers
-        self.use_16_bit_indices = use_16_bit_indices
         self.use_decompress = use_decompress
         self.vq_ind = vq_ind
         self.use_kl = use_kl
@@ -141,6 +141,8 @@ class ImageCompression:
         self.image_size = image_size
         self.batch_size = batch_size
         self.num_workers = num_workers
+
+        self.saved_indices_bits_torch = torch.int16 if saved_indices_bits == 16 else torch.uint8
 
         self.precision_type = torch.float16 if use_float16_precision else torch.float32
 
@@ -240,7 +242,7 @@ class ImageCompression:
                         x0.save(os.path.join(self.output_path, f"{fname[0]}"))
                 else:
                     if self.vq_ind:
-                        if 'ind_16' in loaded_json_data.keys():
+                        if CompressionConfig.saved_indices_precision_key in loaded_json_data.keys():
                             input_data = input_data.type(torch.int64)
 
                         if 'z_shape' in loaded_json_data.keys():
@@ -277,9 +279,6 @@ class ImageCompression:
                     with torch.autocast(device_type=self.device, dtype=self.precision_type):
                         posterior = self.ldm_model.encode(input_data)
                         compressed_tensor = posterior.sample()
-                        # print("TT" * 30)
-                        # print(compressed_tensor.shape)
-
                 else:
                     if self.vq_ind:
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
@@ -289,9 +288,8 @@ class ImageCompression:
                         z_shape = (z.shape[0], z.shape[2], z.shape[3], z.shape[1])
                         json_data_obj['z_shape'] = z_shape
 
-                        if self.use_16_bit_indices:
-                            compressed_tensor = compressed_tensor.type(torch.int16)
-                            json_data_obj["ind_16"] = 1
+                        compressed_tensor = compressed_tensor.type(self.saved_indices_bits_torch)
+                        json_data_obj[CompressionConfig.saved_indices_precision_key] = self.saved_indices_bits
 
                     else:
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
@@ -308,7 +306,7 @@ class ImageCompression:
 
                 save_file(tensors, os.path.join(self.output_path, output_file_name))
 
-                json_data_obj[CompressionConfig.key_output_filename] = output_file_name
+                json_data_obj[CompressionConfig.output_filename_key] = output_file_name
                 json_data_obj["file_name_list"] = list(full_filename)
                 json_object = json.dumps(json_data_obj, indent=4)
 
@@ -329,7 +327,7 @@ def main() -> None:
     parser.add_argument('--dc', help="decompresses encoding", action='store_true')
     parser.add_argument('--vq_ind', help="generates vqgan encoding instead of indices", action='store_true')
     parser.add_argument('--aspect', help="preserves aspect ratio resize by given image size", action='store_true')
-    parser.add_argument('--ind_16', help="saves vq indices as 16 bit tensors", action='store_true')
+    parser.add_argument('--ind_bit', help='saves vq indices to selected bits', default=16, type=int, choices=[8, 16])
     parser.add_argument('--float16', help="process in half precision", action='store_true')
     parser.add_argument('--xformers', help="use xformers to save memory and speedup in some cases", action='store_true')
 
@@ -346,7 +344,7 @@ def main() -> None:
         use_decompress=args.dc,
         batch_size=args.batch,
         keep_aspect_ratio=args.aspect,
-        use_16_bit_indices=args.ind_16,
+        saved_indices_bits=args.ind_bit,
         use_float16_precision=args.float16,
         use_xformers=args.xformers,
     )
