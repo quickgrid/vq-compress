@@ -17,14 +17,13 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm import tqdm
-from vqcompress import shared
+
 from vqcompress.core.config import CompressionConfig
 from vqcompress.ldm.util import instantiate_from_config
 
 try:
     import xformers.ops
-
-    shared.Config.available_xformers = True
+    CompressionConfig.available_xformers = True
 except ModuleNotFoundError as err:
     print(err)
 
