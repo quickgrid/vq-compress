@@ -1,3 +1,7 @@
+"""Copied and modified from,
+- https://github.com/CompVis/latent-diffusion
+"""
+
 import importlib
 
 

@@ -3,8 +3,6 @@ from einops import rearrange
 from vqcompress import shared
 
 try:
-    # import bitsandbytes as bnb
-    # shared.Config.available_bitsandbytes = True
     import xformers.ops
     shared.Config.available_xformers = True
 except ModuleNotFoundError as err:

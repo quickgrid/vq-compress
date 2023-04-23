@@ -1,3 +1,8 @@
+"""Copied and modified from,
+- https://github.com/CompVis/latent-diffusion
+- https://github.com/CompVis/taming-transformers
+"""
+
 import lightning as pl
 import numpy as np
 import torch
@@ -68,13 +73,6 @@ class AutoencoderKL(pl.LightningModule):
             z = posterior.mode()
         dec = self.decode(z)
         return dec, posterior
-
-    def get_input(self, batch, k):
-        x = batch[k]
-        if len(x.shape) == 3:
-            x = x[..., None]
-        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
-        return x
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight
@@ -174,24 +172,6 @@ class VQModel(pl.LightningModule):
         if return_pred_indices:
             return dec, diff, ind
         return dec, diff
-
-    def get_input(self, batch, k):
-        x = batch[k]
-        if len(x.shape) == 3:
-            x = x[..., None]
-        x = x.permute(0, 3, 1, 2).to(memory_format=torch.contiguous_format).float()
-        if self.batch_resize_range is not None:
-            lower_size = self.batch_resize_range[0]
-            upper_size = self.batch_resize_range[1]
-            if self.global_step <= 4:
-                # do the first few batches with max size to avoid later oom
-                new_resize = upper_size
-            else:
-                new_resize = np.random.choice(np.arange(lower_size, upper_size + 16, 16))
-            if new_resize != x.shape[2]:
-                x = F.interpolate(x, size=new_resize, mode="bicubic")
-            x = x.detach()
-        return x
 
     def get_last_layer(self):
         return self.decoder.conv_out.weight

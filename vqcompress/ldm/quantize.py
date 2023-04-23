@@ -1,3 +1,8 @@
+"""Copied and modified from,
+- https://github.com/CompVis/latent-diffusion
+- https://github.com/CompVis/taming-transformers
+"""
+
 import numpy as np
 import torch
 import torch.nn as nn
