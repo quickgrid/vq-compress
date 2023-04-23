@@ -9,6 +9,7 @@ from typing import Tuple
 import numpy as np
 import torch
 from PIL import Image
+from einops import rearrange
 from omegaconf import OmegaConf
 from safetensors import safe_open
 from safetensors.torch import save_file
@@ -16,11 +17,61 @@ from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm import tqdm
-
-from vqcompress.ldm.util import instantiate_from_config
+from vqcompress import shared
 from vqcompress.core.config import CompressionConfig
+from vqcompress.ldm.util import instantiate_from_config
+
+try:
+    import xformers.ops
+
+    shared.Config.available_xformers = True
+except ModuleNotFoundError as err:
+    print(err)
 
 torch.set_grad_enabled(False)
+
+
+def get_xformers_flash_attention_op(q, k, v):
+    try:
+        flash_attention_op = xformers.ops.MemoryEfficientAttentionFlashAttentionOp
+        # flash_attention_op = xformers.ops.MemoryEfficientAttentionOp
+        fw, bw = flash_attention_op
+        if fw.supports(xformers.ops.fmha.Inputs(query=q, key=k, value=v, attn_bias=None)):
+            return flash_attention_op
+    except Exception as e:
+        print(e, "enabling flash attention")
+
+    return None
+
+
+def patch_xformers_attn_forward(self, x):
+    """Can replace LDM vqgan attention method forward with xformers attention. Should also work when replacing other
+    attention code. Code copied from,
+    https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/sd_hijack_optimizations.py.
+
+    Examples:
+        >>> import vqcompress.ldm.model
+        >>> vqcompress.ldm.model.AttnBlock.forward = patch_xformers_attn_forward
+    """
+    h_ = x
+    h_ = self.norm(h_)
+    q = self.q(h_)
+    k = self.k(h_)
+    v = self.v(h_)
+    b, c, h, w = q.shape
+    q, k, v = map(lambda t: rearrange(t, 'b c h w -> b (h w) c'), (q, k, v))
+    # dtype = q.dtype
+    # if True:
+    #     q, k = q.float(), k.float()
+    q = q.contiguous()
+    k = k.contiguous()
+    v = v.contiguous()
+    # out = xformers.ops.memory_efficient_attention(q, k, v, op=get_xformers_flash_attention_op(q, k, v))
+    out = xformers.ops.memory_efficient_attention(q, k, v)
+    # out = out.to(dtype)
+    out = rearrange(out, 'b (h w) c -> b c h w', h=h)
+    out = self.proj_out(out)
+    return x + out
 
 
 class CustomEncodingDataset(Dataset):
@@ -206,8 +257,7 @@ class ImageCompression:
 
         if use_xformers:
             import vqcompress.ldm.model
-            import vqcompress.core.code_patching
-            vqcompress.ldm.model.AttnBlock.forward = vqcompress.core.code_patching.patch_xformers_attn_forward
+            vqcompress.ldm.model.AttnBlock.forward = patch_xformers_attn_forward
 
         # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
@@ -299,7 +349,7 @@ class ImageCompression:
 
                     else:
                         with torch.autocast(device_type=self.device, dtype=self.precision_type):
-                            z, _, [_, _, indices] = self.ldm_model.encode(input_data)
+                            z, _, _ = self.ldm_model.encode(input_data)
 
                         compressed_tensor = z
 
