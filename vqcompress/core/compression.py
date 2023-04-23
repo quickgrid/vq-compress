@@ -1,5 +1,4 @@
 import argparse
-import gc
 import json
 import os
 import pathlib
@@ -18,8 +17,8 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm import tqdm
 
-from vqcompress.core.ldm.util import instantiate_from_config
-from vqcompress.core.vqc.config import CompressionConfig
+from vqcompress.ldm.util import instantiate_from_config
+from vqcompress.core.config import CompressionConfig
 
 torch.set_grad_enabled(False)
 
@@ -206,9 +205,9 @@ class ImageCompression:
             delete_model_layers(['post_quant_conv', 'decoder'])
 
         if use_xformers:
-            import vqcompress.core.vqc.code_patching
-            import vqcompress.core.ldm.model
-            vqcompress.core.ldm.model.AttnBlock.forward = vqcompress.core.vqc.code_patching.patch_xformers_attn_forward
+            import vqcompress.ldm.model
+            import vqcompress.core.code_patching
+            vqcompress.ldm.model.AttnBlock.forward = vqcompress.core.code_patching.patch_xformers_attn_forward
 
         # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)

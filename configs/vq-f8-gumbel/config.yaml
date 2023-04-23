@@ -1,7 +1,7 @@
 model:
   base_learning_rate: 4.5e-06
 #  target: taming.models.vqgan.GumbelVQ
-  target: vqcompress.core.ldm.autoencoder.GumbelVQ
+  target: vqcompress.ldm.autoencoder.GumbelVQ
   params:
     kl_weight: 1.0e-08
     embed_dim: 256

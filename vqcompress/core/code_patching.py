@@ -1,6 +1,6 @@
 from einops import rearrange
 
-from vqcompress.core import shared
+from vqcompress import shared
 
 try:
     # import bitsandbytes as bnb
@@ -30,9 +30,9 @@ def patch_xformers_attn_forward(self, x):
     https://github.com/AUTOMATIC1111/stable-diffusion-webui/blob/master/modules/sd_hijack_optimizations.py.
 
     Examples:
-        >>> import vqcompress.core.vqc.code_patching
-        >>> import vqcompress.core.ldm.model
-        >>> vqcompress.core.ldm.model.AttnBlock.forward = vqcompress.core.vqc.code_patching.patch_xformers_attn_forward
+        >>> import vqcompress.core.code_patching
+        >>> import vqcompress.ldm.model
+        >>> vqcompress.ldm.model.AttnBlock.forward = vqcompress.core.code_patching.patch_xformers_attn_forward
     """
     h_ = x
     h_ = self.norm(h_)

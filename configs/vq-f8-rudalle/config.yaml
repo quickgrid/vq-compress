@@ -1,6 +1,6 @@
 model:
   base_learning_rate: 4.5e-06
-  target: vqcompress.core.ldm.autoencoder.GumbelVQ
+  target: vqcompress.ldm.autoencoder.GumbelVQ
   params:
     embed_dim: 256
     n_embed: 8192
