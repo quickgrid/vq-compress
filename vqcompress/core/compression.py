@@ -144,8 +144,8 @@ def custom_to_pil(x):
     x = torch.clamp(x, -1., 1.)
     x = (x + 1.) / 2.
     x = x.permute(1, 2, 0)
+    x = (255 * x).type(torch.uint8)
     x = x.detach().cpu().numpy()
-    x = (255 * x).astype(np.uint8)
     x = Image.fromarray(x)
     if not x.mode == "RGB":
         x = x.convert("RGB")
