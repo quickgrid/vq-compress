@@ -241,7 +241,7 @@ class ImageCompression:
             for layer_initial in layer_initial_list:
                 key_delete_list = []
                 for dkey in sd_keys:
-                    if dkey.split('.')[0] == layer_initial:
+                    if dkey.startswith(layer_initial):
                         key_delete_list.append(dkey)
 
                 for k in key_delete_list:
@@ -261,8 +261,12 @@ class ImageCompression:
         # print(sd.keys())
         self.ldm_model = instantiate_from_config(config.model)
         self.ldm_model.load_state_dict(sd, strict=False)
+        if use_float16_precision:
+            self.ldm_model.half()
         self.ldm_model = self.ldm_model.to(device)
         self.ldm_model.eval()
+        # for param in self.ldm_model.parameters():
+        #     param.requires_grad = False
 
         del sd
         del pl_sd
