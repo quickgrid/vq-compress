@@ -1,3 +1,29 @@
+"""
+BUG: 
+1. Current code loads all layers despite trying to delete. Skip, `instantiate_from_config`.
+2. Check if gradient disabled for inference.
+
+Solution 1:
+Need to do this for all models replacing `AutoencoderKL`.
+
+```
+cfg_path = r"PATH_TO_CFG"
+ckpt_path = r"PATH_TO_CKPT"
+config = OmegaConf.load(cfg_path)
+self.vae_model = AutoencoderKL(
+    ddconfig=config.model.params.ddconfig,
+    embed_dim=config.model.params.embed_dim,
+    ckpt_path=ckpt_path,
+    ignore_keys=['post_quant_conv', 'decoder', 'loss', 'model_ema'],
+    # ignore_keys=['quant_conv', 'encoder', 'post_quant_conv', 'decoder', 'loss', 'model_ema'],
+    custom_load_type=['encoder'],
+)
+self.vae_model = self.vae_model.requires_grad_(False)
+self.vae_model.eval()
+self.vae_model.to(device)
+```
+"""
+
 import argparse
 import json
 import os
